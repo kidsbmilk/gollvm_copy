@@ -106,7 +106,7 @@ void Bfunction::lazyAbiSetup()
   if (abiOracle_->returnInfo().disp() == ParmIndirect) {
     std::string sretname(namegen("sret.formal"));
     arguments_[argIdx]->setName(sretname);
-    llvm::AttrBuilder SRETAttrs(function()->getContext());
+    llvm::AttrBuilder SRETAttrs;
     SRETAttrs.addStructRetAttr(fcnType_->resultType()->type());
     arguments_[argIdx]->addAttrs(SRETAttrs);
     rtnValueMem_ = arguments_[argIdx];
@@ -140,7 +140,7 @@ void Bfunction::lazyAbiSetup()
         paramValues_.push_back(arguments_[argIdx]);
         assert(paramInfo.numArgSlots() == 1);
         if (paramInfo.attr() == AttrByVal) {
-          llvm::AttrBuilder BVAttrs(function()->getContext());
+          llvm::AttrBuilder BVAttrs;
           BVAttrs.addByValAttr(paramTypes[idx]->type());
           arguments_[argIdx]->addAttrs(BVAttrs);
         }

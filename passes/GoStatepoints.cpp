@@ -1283,13 +1283,13 @@ static AttributeList legalizeCallAttributes(LLVMContext &Ctx,
     return AL;
 
     // Remove the readonly, readnone, and statepoint function attributes.
-  AttrBuilder FnAttrs(Ctx, AL.getFnAttrs());
+  AttrBuilder FnAttrs(AL.getFnAttributes());
   for (auto Attr : FnAttrsToStrip)
     FnAttrs.removeAttribute(Attr);
 
-  for (Attribute A : AL.getFnAttrs()) {
+  for (Attribute A : AL.getFnAttributes()) {
     if (isStatepointDirectiveAttr(A))
-      FnAttrs.removeAttribute(A);
+      FnAttrs.remove(A);
   }
 
     // Just skip parameter and return attributes for now
@@ -1511,11 +1511,11 @@ makeStatepointExplicitImpl(CallBase *Call, /* to replace */
     // the "gc arg" slots, of the statepoint. Both are recorded in the stack
     // map the same way. The difference is that "deopt arg" doesn't need
     // relocation. We're implementing non-moving GC (for now).
-    FunctionCallee FCallTarget(Call->getFunctionType(),
-                              Call->getCalledOperand());
+    // FunctionCallee FCallTarget(Call->getFunctionType(),
+    //                          Call->getCalledOperand());
     InvokeInst *Invoke = Builder.CreateGCStatepointInvoke(
-        StatepointID, NumPatchBytes, FCallTarget, ToReplace->getNormalDest(),
-        ToReplace->getUnwindDest(), CallArgs, GCArgs, ArrayRef<Value*>(),
+        StatepointID, NumPatchBytes, Call->getCalledOperand(), ToReplace->getNormalDest(),
+        ToReplace->getUnwindDest(), CallArgs, Optional<ArrayRef<Value*>>(), GCArgs, 
         "statepoint_token");
 
     Invoke->setCallingConv(ToReplace->getCallingConv());
@@ -1567,7 +1567,7 @@ makeStatepointExplicitImpl(CallBase *Call, /* to replace */
       CallInst *GCResult = Builder.CreateGCResult(Token, Call->getType(), Name);
       GCResult->setAttributes(
           AttributeList::get(GCResult->getContext(), AttributeList::ReturnIndex,
-                             Call->getAttributes().getRetAttrs()));
+                             Call->getAttributes().getRetAttributes()));
 
       // We cannot RAUW or delete CS.getInstruction() because it could be in the
       // live set of some other safepoint, in which case that safepoint's
@@ -1996,7 +1996,7 @@ static bool insertParsePoints(Function &F, DominatorTree &DT,
 template <typename AttrHolder>
 static void RemoveNonValidAttrAtIndex(LLVMContext &Ctx, AttrHolder &AH,
                                       unsigned Index) {
-  AttrBuilder R(Ctx);
+  AttrBuilder R;
   AttributeSet AS = AH.getAttributes().getAttributes(Index);
   if (AS.getDereferenceableBytes())
     R.addAttribute(Attribute::get(Ctx, Attribute::Dereferenceable,
@@ -2010,7 +2010,7 @@ static void RemoveNonValidAttrAtIndex(LLVMContext &Ctx, AttrHolder &AH,
 
   AttributeSet AS2 = AttributeSet::get(Ctx,R);
   if (AS2.getNumAttributes() > 0)
-    AH.setAttributes(AH.getAttributes().removeAttributesAtIndex(Ctx, Index, AttributeMask(AS2)));
+    AH.setAttributes(AH.getAttributes().removeAttributes(Ctx, Index, R));
 }
 
 static void stripNonValidAttributesFromPrototype(Function &F) {

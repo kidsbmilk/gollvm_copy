@@ -2743,15 +2743,15 @@ Bfunction *Llvm_backend::function(Btype *fntype, const std::string &name,
         fns == "runtime.makeslice64" ||
         fns == "runtime.makechan" ||
         fns == "runtime.makechan64") {
-      fcn->addAttributeAtIndex(llvm::AttributeList::ReturnIndex, nonNullAttr);
-      fcn->addAttributeAtIndex(llvm::AttributeList::ReturnIndex, noAliasAttr);
+      fcn->addAttribute(llvm::AttributeList::ReturnIndex, nonNullAttr);
+      fcn->addAttribute(llvm::AttributeList::ReturnIndex, noAliasAttr);
     }
 
     // makemap may return its argument, so not noalias.
     if (fns == "runtime.makemap" ||
         fns == "runtime.makemap64" ||
         fns == "runtime.makemap_small")
-      fcn->addAttributeAtIndex(llvm::AttributeList::ReturnIndex, nonNullAttr);
+      fcn->addAttribute(llvm::AttributeList::ReturnIndex, nonNullAttr);
 
     // mapaccess1 and mapassign never return nil.
     if (fns == "runtime.mapaccess1" ||
@@ -2765,7 +2765,7 @@ Bfunction *Llvm_backend::function(Btype *fntype, const std::string &name,
         fns == "runtime.mapassign_fast32ptr" ||
         fns == "runtime.mapassign_fast64ptr" ||
         fns == "runtime.mapassign_faststr")
-      fcn->addAttributeAtIndex(llvm::AttributeList::ReturnIndex, nonNullAttr);
+      fcn->addAttribute(llvm::AttributeList::ReturnIndex, nonNullAttr);
 
     // mapaccess is pure function.
     if (!compilingRuntime_ &&

@@ -1319,7 +1319,7 @@ Llvm_backend::genCallMarshallArgs(const std::vector<Bexpression *> &fn_args,
 void Llvm_backend::genCallAttributes(GenCallState &state, llvm::CallInst *call)
 {
   const llvm::AttributeList &callAttrList = call->getAttributes();
-  llvm::AttrBuilder retAttrs(context_, callAttrList.getRetAttrs());
+  llvm::AttrBuilder retAttrs(callAttrList.getRetAttributes());
   const std::vector<Btype *> &paramTypes = state.calleeFcnType->paramTypes();
   size_t na = state.oracle.getFunctionTypeForABI()->getNumParams();
   llvm::SmallVector<llvm::AttributeSet, 4> argAttrs(na);
@@ -1327,7 +1327,7 @@ void Llvm_backend::genCallAttributes(GenCallState &state, llvm::CallInst *call)
   // Sret attribute if needed
   const CABIParamInfo &returnInfo = state.oracle.returnInfo();
   if (returnInfo.disp() == ParmIndirect) {
-    llvm::AttrBuilder ab(context_);
+    llvm::AttrBuilder ab;
     ab.addStructRetAttr(state.calleeFcnType->resultType()->type());
     ab.addAttribute(llvm::Attribute::get(call->getContext(), "go_sret"));
     argAttrs[0] = llvm::AttributeSet::get(context_, ab);
@@ -1336,7 +1336,7 @@ void Llvm_backend::genCallAttributes(GenCallState &state, llvm::CallInst *call)
   // Nest attribute if needed
   const CABIParamInfo &chainInfo = state.oracle.chainInfo();
   if (chainInfo.disp() != ParmIgnore) {
-    llvm::AttrBuilder ab(context_);
+    llvm::AttrBuilder ab;
     ab.addAttribute(llvm::Attribute::Nest);
     argAttrs[chainInfo.sigOffset()] =
         llvm::AttributeSet::get(context_, ab);
@@ -1351,7 +1351,7 @@ void Llvm_backend::genCallAttributes(GenCallState &state, llvm::CallInst *call)
     assert(paramInfo.attr() != AttrStructReturn);
     if (paramInfo.attr() != AttrNone) {
       unsigned off = paramInfo.sigOffset();
-      llvm::AttrBuilder ab(context_);
+      llvm::AttrBuilder ab;
       if (paramInfo.attr() == AttrByVal) {
         ab.addByValAttr(paramTypes[idx]->type());
       } else if (paramInfo.attr() == AttrZext) {
@@ -1365,7 +1365,7 @@ void Llvm_backend::genCallAttributes(GenCallState &state, llvm::CallInst *call)
 
   call->setAttributes(
       llvm::AttributeList::get(context_,
-                               callAttrList.getFnAttrs(),
+                               callAttrList.getFnAttributes(),
                                llvm::AttributeSet::get(context_, retAttrs),
                                argAttrs));
 }

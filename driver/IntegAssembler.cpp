@@ -43,7 +43,7 @@
 #include "llvm/MC/MCStreamer.h"
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/MC/MCTargetOptions.h"
-#include "llvm/MC/TargetRegistry.h"
+#include "llvm/Support/TargetRegistry.h"
 #include "llvm/Option/Arg.h"
 #include "llvm/Option/ArgList.h"
 #include "llvm/Option/OptTable.h"
@@ -264,7 +264,7 @@ bool IntegAssemblerImpl::invokeAssembler()
         /*DWARFMustBeAtTheEnd*/ true));
 
   bool NoExecStack = true;
-  Str.get()->initSections(NoExecStack, *STI);
+  Str.get()->InitSections(NoExecStack);
 
   // Assembly to object compilation should leverage assembly info.
   Str->setUseAssemblerInfoForParsing(true);
