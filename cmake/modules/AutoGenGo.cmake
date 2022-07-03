@@ -470,6 +470,7 @@ function(generate_go_from_script outpath script goos goarch workdir)
   get_filename_component(outfile "${outpath}" NAME)
   get_filename_component(outdir "${outpath}" DIRECTORY)
   set(tmpfile "${outdir}/tmp-${outfile}")
+  # 设置 shell
   if(DEFINED ENV{SHELL})
     set(shell $ENV{SHELL})
   else()

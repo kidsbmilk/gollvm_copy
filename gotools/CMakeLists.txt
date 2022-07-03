@@ -23,9 +23,13 @@ endif()
 
 # Driver for compiling *.go files.
 get_target_property(driverdir llvm-goc RUNTIME_OUTPUT_DIRECTORY)
+# 从这里可以看出，编译各种 go 命令时，使用的是 llvm-goc 这个工具命令。
+# 在哪里编译生成 llvm-goc 呢？在 llvm/tools/gollvm/driver-main/CMakeLists.txt 中！
 set(gollvm_driver "${driverdir}/llvm-goc")
 set(gocompiler ${gollvm_driver})
 
+# 定义 go cmd 命令的路径，从这里可以看到，gofronted 不仅仅是编译器前端、只处理语法解析之类的，
+# 像 go 自身带的一些命令都在 gofrontend/libgo 项目中，且是用 go 语言实现的。
 set(cmd_srcroot "${GOLLVM_SOURCE_DIR}/gofrontend/libgo/go/cmd")
 set(libgo_srcroot "${GOLLVM_SOURCE_DIR}/gofrontend/libgo")
 
@@ -47,6 +51,7 @@ set(matchdotsh "${libgo_scriptroot}/match.sh")
 set(cgo_extra_go_files "${cgozdefaultccdotgo}")
 
 # Loop over each of the tools of interest.
+# 这里定义了都编译出哪些目标，非常重要！
 set(tools "go" "gofmt" "cgo" "vet" "buildid" "test2json")
 set(allgotools)
 foreach(tool ${tools})
@@ -59,6 +64,7 @@ foreach(tool ${tools})
 
     # Invoke match.sh to collect Go files of interest for this
     # tool, via shell script. Read result into variable.
+    # llvm-project/llvm/tools/gollvm/cmake/modules/GoVars.cmake 中会从 LLVM_DEFAULT_TARGET_TRIPLE 中得到信息并设置 goarch, goos
     execute_process(COMMAND "${shell}" "${matchdotsh}"
       "--goarch=${goarch}" "--goos=${goos}"
       "--srcdir=${cmd_srcroot}/${tool}"
@@ -68,6 +74,7 @@ foreach(tool ${tools})
     if(NOT ${exitstatus} MATCHES 0)
       message(FATAL_ERROR "match.sh invocation failed: ${errmsg}")
     endif()
+    # 可以打印出来看看 TODO-ZZ
     string(STRIP ${toolfiles} toolfiles)
     separate_arguments(toolfiles)
 
@@ -76,12 +83,15 @@ foreach(tool ${tools})
       list(APPEND toolfiles "${${tool}_extra_go_files}")
     endif()
 
+    # isubdir 是命令安装的目录，默认是安装在"安装目录"下的 tools 子目录里，但是，如果是 go 命令，则安装在"安装目录"下的 bin 子目录里。
     set(isubdir "tools")
     if("${tool}" STREQUAL "go")
       set(isubdir "bin")
     endif()
 
     # Create target for program.
+    # 比如 go 命令，编译后放在 workarea/build.rel/tools/gollvm/gotools 目录下，
+    # 由此可以知道 CMAKE_CURRENT_BINARY_DIR 变量的值是当前模块的路径，而不是执行 cmake 时的目录。非常重要！
     add_go_program(${tool} ${tool_target}
       ${libgo_binroot} ${gotools_binroot}
       GOSRC ${toolfiles}
@@ -93,6 +103,7 @@ foreach(tool ${tools})
   endif()
 endforeach()
 
+# 这里比较重要，定义了 gollvm 这个目标里比较重要的内容。
 add_custom_target(gotools_all DEPENDS ${allgotools})
 add_dependencies(gollvm gotools_all)
 

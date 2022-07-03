@@ -46,6 +46,7 @@ function(add_go_program progname target libgodir destdir)
   # Command to build executable.
   add_custom_command(
     OUTPUT ${program_exe}
+    # 这里最终编译各种 go 命令，比如 go、vet、gofmt 等。
     COMMAND "${gocompiler}" "-o" ${program_exe} ${object} ${ARG_GOCFLAGS}
             -I ${libgodir} -L ${libgodir} ${ARG_GOLIB}
     DEPENDS ${deps} ${object}
@@ -53,6 +54,7 @@ function(add_go_program progname target libgodir destdir)
     VERBATIM)
 
   # Create target
+  # 加日志看看 target 是什么？TODO-ZZ
   add_custom_target(${target} ALL DEPENDS ${program_exe})
 
   # Configure for install.

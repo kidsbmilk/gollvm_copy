@@ -32,6 +32,7 @@ else()
 endif()
 
 # We need a working shell. 
+# 设置 shell
 if(DEFINED ENV{SHELL})
   set(shell $ENV{SHELL})
 else()

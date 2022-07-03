@@ -22,6 +22,7 @@ set(LLVM_LINK_COMPONENTS
   )
 
 # Include directories needed by llvm-goc
+# llvm-goc 是编译出的 gocompiler，所以，这里编译 llvm-goc 时，需要引入 gofrontend。非常重要！
 include_directories(${GOFRONTEND_SOURCE_DIR})
 include_directories(${BRIDGE_SOURCE_DIR})
 include_directories(${DRIVER_UTILS_SOURCE_DIR})
@@ -31,6 +32,7 @@ include_directories("${gollvm_binroot}/driver")
 include_directories(${EXTINSTALLDIR}/include)
 
 # The llvm-goc executable itself
+# 这里有定义 llvm-goc，add_gollvm_tool 方法在 llvm-project/llvm/tools/gollvm/cmake/modules/AddGollvm.cmake 中定义。
 add_gollvm_tool(llvm-goc
   llvm-goc.cpp)
 
@@ -44,9 +46,11 @@ target_link_libraries(llvm-goc
   )
 
 # Create a "compiler built" file each time llvm-goc is built.
+# 路径：workarea/build.rel/tools/gollvm/driver-main/llvm-goc.built
 set(llvm_goc_build ${CMAKE_CURRENT_BINARY_DIR}/llvm-goc.built)
 add_custom_command(
   OUTPUT ${llvm_goc_build}
+  # 下面的 CMAKE_COMMAND -E 没太明白？TODO-ZZ
   COMMAND  ${CMAKE_COMMAND} -E touch ${llvm_goc_build}
   DEPENDS llvm-goc
   COMMENT "Create 'build-performed' file for llvm-goc"
@@ -63,5 +67,6 @@ add_custom_target(llvm-goc-token ALL DEPENDS ${llvm_goc_token})
 
 # Add a symlink to llvm-goc named "gccgo" in install dir, for
 # compatibility with gccgo.
+# 在安装目录中为 llvm-goc 添加一个名为“gccgo”的符号链接，以与 gccgo 兼容。非常重要！
 install(CODE "execute_process(COMMAND ${CMAKE_COMMAND} -E create_symlink \"llvm-goc\" \"${CMAKE_INSTALL_PREFIX}/bin/gccgo\")"
   COMPONENT llvm-goc)

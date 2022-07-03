@@ -92,12 +92,16 @@ macro(add_gollvm_library name)
 endmacro(add_gollvm_library)
 
 macro(add_gollvm_executable name)
+  # ${ARGN} 表示形式参数以外的其他参数，所以，add_gollvm_executable 在调用时，可以传多个参数，不仅仅只是定义中的一个 name，
+  # 可以看下面 add_gollvm_tool 定义中调用 add_gollvm_executable 的例子。
+  # add_llvm_executable 在 llvm/cmake/modules/AddLLVM.cmake 中定义。
   add_llvm_executable(${name} ${ARGN} )
   set_target_properties(${name} PROPERTIES FOLDER "Gollvm executables")
 endmacro(add_gollvm_executable)
 
 macro(add_gollvm_tool name)
 
+  # ${ARGN} 表示形式参数以外的其他参数，所以，add_gollvm_tool 在调用时，可以传多个参数，不仅仅只是定义中的一个 name
   add_gollvm_executable(${name} ${ARGN})
 
   # Configure for install.
