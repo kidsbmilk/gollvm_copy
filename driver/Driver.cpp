@@ -413,6 +413,7 @@ ToolChain *Driver::setup()
 
   // Set triple.
   // TODO: add cross compiling support.
+  // Triple 返回描述机器的三元组 (arch-vendor-os)。
   llvm::Triple defaultTargetTriple = Triple(sys::getDefaultTargetTriple());
   triple_ = defaultTargetTriple;
   if (const opt::Arg *arg = args_.getLastArg(gollvm::options::OPT_target_EQ))
@@ -429,6 +430,7 @@ ToolChain *Driver::setup()
   }
 
   // Look up toolchain.
+  // 在哪里设置的 toolchains_ ？TODO-ZZ 难道是这里原本一开始就为空，然后下面找不到时再创建吗？
   auto &tc = toolchains_[triple_.str()];
   if (!tc) {
     switch (triple_.getOS()) {
@@ -460,7 +462,7 @@ ToolChain *Driver::setup()
   for (opt::Arg *arg : args_) {
     if (arg->getOption().getKind() == opt::Option::InputClass) {
 
-      // Special case for "-" (always assumed to exist)
+      // Special case for "-" (always assumed to exist) 这个怎么使用？TODO-ZZ
       if (strcmp(arg->getValue(), "-")) {
         std::string fn(arg->getValue());
 
@@ -488,6 +490,7 @@ ToolChain *Driver::setup()
 
   // FIXME: add code to weed out unknown architectures (ex:
   // SomethingWeird-unknown-linux-gnu).
+  // FIXME：添加代码以清除未知架构（例如：SomethingWeird-unknown-linux-gnu）。
 
   return tc.get();
 }
@@ -500,6 +503,7 @@ void Driver::appendInputActions(const inarglist &ifargs,
     bool schedAction = false;
     Action *act = nullptr;
     if (!strcmp(ifarg->getValue(), "-")) {
+      // CommandLineParser::parseCommandLine 中有关于 -x 的注释。
       opt::Arg *xarg = args_.getLastArg(gollvm::options::OPT_x);
       assert(xarg);
       const char *suf =
@@ -508,8 +512,10 @@ void Driver::appendInputActions(const inarglist &ifargs,
       act = new ReadStdinAction(suf);
       schedAction = true;
     } else {
+      // "-" 是如何处理的？TODO-ZZ
       act = new InputAction(compilation.newArgArtifact(ifarg));
     }
+    // recordAction 和 addAction 收集 act 的目标容器不一样。
     compilation.recordAction(act);
     if (schedAction)
       compilation.addAction(act);
@@ -531,6 +537,7 @@ bool Driver::buildActions(Compilation &compilation)
 
       // At the moment the canonical "-" input (stdin) is assumed
       // to be Go source.
+      // 目前，规范的“-”输入（stdin）被假定为 Go 源。这个怎么使用？TODO-ZZ
       if (!strcmp(arg->getValue(), "-")) {
         gofiles.push_back(arg);
         continue;
@@ -570,6 +577,8 @@ bool Driver::buildActions(Compilation &compilation)
   }
 
   // Handle Go compilation action if needed.
+  // 从下面 gofiles 的处理中收集的各种 action 来看，这里的 action 主要是对不同语言写的代码的处理动作，
+  // 而不是编译 go 时的具体的某个参数的处理动作。
   if (!gofiles.empty()) {
 
     // Build a list of input actions for the go files.
@@ -666,6 +675,7 @@ ArtifactList Driver::collectInputArtifacts(Action *act, InternalTool *it)
     // It is an error if an internal-tool action is receiving a result
     // from an external tool (in the current model all internal-tool actions
     // have to take place before any external-tool actions).
+    // 如果内部工具操作正在接收来自外部工具的结果（在当前模型中，所有内部工具操作必须在任何外部工具操作之前发生），则这是一个错误。
     assert(it == nullptr || input->castToReadStdinAction() != nullptr);
     auto it = artmap_.find(input);
     assert(it != artmap_.end());
@@ -679,7 +689,7 @@ bool Driver::processAction(Action *act, Compilation &compilation, bool lastAct)
   // Select the result file for this action.
   Artifact *result = nullptr;
   if (!lastAct) {
-    if (unitTesting()) {
+    if (unitTesting()) { // 打开这里看看？TODO-ZZ
       result = compilation.createFakeFileArtifact(act);
     } else {
       auto tfa = compilation.createTemporaryFileArtifact(act);
@@ -688,11 +698,15 @@ bool Driver::processAction(Action *act, Compilation &compilation, bool lastAct)
       result = *tfa;
     }
   } else {
+    // 这里依赖是否是最后一个 action，是不是不太好？TODO-ZZ
     result = compilation.createOutputFileArtifact(act);
   }
   artmap_[act] = result;
 
   // Select tool to process the action.
+  // 别看串了，不是 clang/lib/Driver/Driver.cpp 中的 getTool，而是 llvm/tools/gollvm/driver/ToolChain.cpp 中的 getTool !
+  // Driver::setup() 中会设置 toolchains_，目前只有 Linux 类型的。
+  // 下面的 tool 就是取得的 gocompiler，后面用它编译输入源码文件。非常重要！
   Tool *tool = compilation.toolchain().getTool(act);
   assert(tool != nullptr);
   InternalTool *it = tool->castToInternalTool();
@@ -701,8 +715,10 @@ bool Driver::processAction(Action *act, Compilation &compilation, bool lastAct)
   ArtifactList actionInputs = collectInputArtifacts(act, it);
 
   // If internal tool, perform now.
+  // 何时 it 不为 nullptr，是指 go、vet、gofmt 这些命令时吗，加日志看看？TODO-ZZ
   if (it != nullptr) {
     if (!unitTesting()) {
+      // 这个 performAction 是直接执行了相应 action，而下面的 constructCommand 是先构造命令，并不立即执行。非常重要！
       if (! it->performAction(compilation, *act, actionInputs, *result))
         return false;
     }
@@ -710,7 +726,10 @@ bool Driver::processAction(Action *act, Compilation &compilation, bool lastAct)
   }
 
   // External tool: build command
+  // 何时走到这里，加日志看看？TODO-ZZ
   ExternalTool *et = tool->castToExternalTool();
+  // constructCommand 是先构造命令，并不立即执行，
+  // llvm/tools/gollvm/driver-main/llvm-goc.cpp 中会调用 compilation->executeCommands() 来执行命令。
   if (! et->constructCommand(compilation, *act, actionInputs, *result))
     return false;
 

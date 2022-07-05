@@ -44,6 +44,18 @@ namespace gnutools {
 // out the corresponding "escaped" arguments and mixes them in with
 // any args that appear in the input list.
 
+// 这个帮助例程用于构造链接器和汇编器命令行。它通过“-Wl,...”或等价物将输入参数与任何面向转义的命令行参数结合起来。例如，考虑以下命令行：
+//
+//    llvm-goc -L /somepath foo.go -o qux \
+//        -Wl,--whole-archive mumble.a -Wl,--no-whole-archive blah.a
+//
+// 这将导致三个链接器输入（foo.o、mumble.a 和 blah.a）。
+// 这里为了获得语义，我们必须正确地将输入与标志交错，例如
+//
+//    ld -o qux <...> foo.o --whole-archive mumble.a --no-whole-archive blah.a
+//
+// 这个辅助例程遍历命令行参数并挑选出相应的“转义”参数并将它们与输入列表中出现的任何参数混合。
+
 static void
 combineInputsWithEscapes(const std::set<unsigned> &escapes,
                          const std::set<unsigned> &flags,
@@ -98,6 +110,7 @@ bool Assembler::constructCommand(Compilation &compilation,
   llvm::opt::ArgStringList cmdArgs;
 
   // Executable path.
+  // 这个 as 是啥，加日志看看？TODO-ZZ
   const char *executable =
       args.MakeArgString(toolchain().getProgramPath("as"));
   if (! executable) {

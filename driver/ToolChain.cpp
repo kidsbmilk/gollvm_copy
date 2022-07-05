@@ -32,9 +32,12 @@ ToolChain::~ToolChain()
 {
 }
 
+// 真正的得到编译器！
 Tool *ToolChain::getCompiler()
 {
   if (compiler_.get() == nullptr)
+    // Driver::setup() 中会设置 toolchains_，目前只有 Linux 类型的。
+    // 所以下面的 buildCompiler 方法在 llvm/tools/gollvm/driver/LinuxToolChain.cpp 中有实现。非常重要！
     compiler_.reset(buildCompiler());
   return compiler_.get();
 }
@@ -66,6 +69,7 @@ Tool *ToolChain::getTool(Action *act)
   switch(act->type()) {
     case Action::A_Compile:
     case Action::A_CompileAndAssemble:
+      // 真正的得到编译器！
       return getCompiler();
     case Action::A_Assemble:
       return getAssembler();

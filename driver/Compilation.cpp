@@ -87,6 +87,7 @@ Artifact *Compilation::createFakeFileArtifact(Action *act)
 Artifact *Compilation::newFileArtifact(const char *path, bool isTempFile)
 {
   paths_.push_back(std::string(path));
+  // back() 是取最后一个元素
   const char *fn = paths_.back().c_str();
   if (isTempFile)
     tempFileNames_.push_back(fn);
@@ -160,6 +161,7 @@ bool Compilation::executeCommands()
 
   bool hashHashHash = args.hasArg(gollvm::options::OPT__HASH_HASH_HASH);
   for (auto cmd : commands_) {
+    // 加日志看看？TODO-ZZ
 
     // Support -v and/or -###
     if (hashHashHash || args.hasArg(gollvm::options::OPT_v))
@@ -171,6 +173,7 @@ bool Compilation::executeCommands()
 
     // Execute.
     std::string errMsg;
+    // 调用 llvm/tools/gollvm/driver/Command.cpp 中的 Command::execute。
     int rc = cmd->execute(&errMsg);
     if (rc != 0) {
       if (!errMsg.empty())

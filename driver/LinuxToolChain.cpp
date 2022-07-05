@@ -93,6 +93,7 @@ Linux::~Linux()
 {
 }
 
+// 真正的得到编译器！
 Tool *Linux::buildCompiler()
 {
   return new CompileGo(*this, driver().executablePath());

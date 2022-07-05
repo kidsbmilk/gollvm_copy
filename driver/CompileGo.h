@@ -27,6 +27,7 @@ class CompileGoImpl;
 // Concrete go compiler tool. This tool is used by the driver to carry
 // out "compile" actions, e.g. "compile this set of Go files into
 // assembly".
+// 具体的 go 编译工具。驱动程序使用此工具来执行 "compile" 操作，例如 “将这组 Go 文件编译成程序集”。
 
 class CompileGo : public InternalTool {
  public:

@@ -66,6 +66,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+// 加日志看看目前使用的是不是分段栈？TODO-ZZ
 #ifdef USING_SPLIT_STACK
 constexpr bool using_splitstack = true;
 #else
@@ -91,11 +92,12 @@ class CommandLineParser {
 };
 
 bool CommandLineParser::parseCommandLine(int argc, char **argv)
-{
+{ // 以前觉得 c++ 代码很难读，没有 go 简洁，看了下面的实现，才感觉只是实现的问题，下面的代码抽象、组织的非常好，非常易懂。
   const char *progname = argv[0];
 
   unsigned missingArgIndex, missingArgCount;
   ArrayRef<const char *> argvv = makeArrayRef(argv, argc);
+  // 这里的 slice(1) 是切掉前面第一个元素得到后面的元素，而不是只取第一个元素。
   args_ = opts_->ParseArgs(argvv.slice(1), missingArgIndex, missingArgCount);
 
   // Honor --help first
@@ -171,6 +173,10 @@ bool CommandLineParser::parseCommandLine(int argc, char **argv)
   // being we will "fake it" by allowing "-x ... -" but then requiring
   // that standard input be empty (so as to support the Go tool, but
   // not act as a general-purposes C compiler).
+
+  // HACK：go 工具喜欢在各个点调用 C 和 Go 编译器驱动程序来检测是否支持给定的命令行标志（例如：“gcc -x c - -someflag < /dev/null”），
+  // 并且倾向于即使驱动程序是 gccgo，也要传递“-x c”。Gccgo 是（mirabile dictu）一个函数式 C 编译器，但 gollvm 不是。
+  // 暂时我们将通过允许“-x ... -”来“伪造”它，但随后要求标准输入为空（以支持 Go 工具，但不充当通用 C 编译器）。
   opt::Arg *xarg = args_.getLastArg(gollvm::options::OPT_x);
   if (xarg != nullptr &&
       ! llvm::StringRef(xarg->getValue()).equals("c") &&
@@ -209,6 +215,7 @@ int main(int argc, char **argv)
     return 1;
 
   // Create driver.
+  // llvm/tools/gollvm/driver/Driver.h 中定义 Driver。
   Driver driver(clp.args(), opts.get(), argv[0], using_splitstack);
 
   // Set up driver, select target and toolchain.
@@ -225,6 +232,7 @@ int main(int argc, char **argv)
   // Process the action list. This will carry out actions that don't
   // require use of an external tool, and will generate a list of
   // commands for invoking external tools.
+  // 处理动作列表。这将执行不需要使用外部工具的操作，并将生成用于调用外部工具的命令列表。
   if (!driver.processActions(*compilation))
     return 3;
 

@@ -56,6 +56,7 @@ class Tool {
 // An "internal" tool -- carries out the steps needs to perform some
 // action (such as compilation or assembly) within the driver itself
 // (as opposed to via invocation of an external program).
+// 一个 "internal" 工具 -- 执行需要在驱动程序本身内执行某些操作（例如编译或汇编）的步骤（而不是通过调用外部程序）。
 
 class InternalTool : public Tool {
  public:
@@ -101,6 +102,9 @@ class ExternalTool : public Tool {
   // carry out that action via the invocation of an external program
   // (such as a linker or assembler). Return value is true for
   // success, false otherwise.
+
+  // 给定一个特定的 action，将一个新的命令添加到 "compilation" 中，以通过调用外部程序（例如链接器或汇编器）来执行该动作。
+  // 返回值为 true 表示成功，否则为 false。
   virtual bool constructCommand(Compilation &compilation,
                                 const Action &jobAction,
                                 const ArtifactList &inputArtifacts,

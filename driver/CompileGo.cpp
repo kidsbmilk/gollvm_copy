@@ -150,6 +150,7 @@ CompileGoImpl::CompileGoImpl(CompileGo &cg,
                              ToolChain &tc,
                              const std::string &executablePath)
     : cg_(cg),
+      // 描述机器的三元组 (arch-vendor-os)。
       triple_(tc.driver().triple()),
       toolchain_(tc),
       driver_(tc.driver()),
@@ -158,16 +159,19 @@ CompileGoImpl::CompileGoImpl(CompileGo &cg,
       executablePath_(executablePath),
       args_(tc.driver().args()),
       cgolvl_(CodeGenOpt::Default),
+      // 编译器优化级别
       olvl_(2),
       hasError_(false),
       enable_gc_(false)
 {
+  // 下面方法在 llvm/include/llvm/Support/TargetSelect.h 中的定义。这里体现了：gollvm 将 go 编译器与 llvm 后端联起来的操作。
   InitializeAllTargets();
   InitializeAllTargetMCs();
   InitializeAllAsmPrinters();
   InitializeAllAsmParsers();
 }
 
+// gollvm 编译 go 程序真正开始进行编译的入口应该是这里，非常重要！加日志看看？TODO-ZZ
 bool CompileGoImpl::performAction(Compilation &compilation,
                                   const Action &jobAction,
                                   const ArtifactList &inputArtifacts,
@@ -281,6 +285,7 @@ generateOptimizationRemarkRegex(opt::ArgList &args, opt::Arg *rpassArg)
   return pattern;
 }
 
+// 这里应该只是设置一些参数
 bool CompileGoImpl::setup(const Action &jobAction)
 {
   // Set triple.
@@ -291,6 +296,7 @@ bool CompileGoImpl::setup(const Action &jobAction)
 
   // Get the target specific parser.
   std::string Error;
+  // 这里加日志看看，为什么注释里说的是：Get the target specific parser. ？TODO-ZZ
   const Target *TheTarget =
       TargetRegistry::lookupTarget("", triple_, Error);
   if (!TheTarget) {
@@ -298,7 +304,7 @@ bool CompileGoImpl::setup(const Action &jobAction)
     return false;
   }
 
-  // optimization level
+  // optimization level // 优化级别
   opt::Arg *oarg = args_.getLastArg(gollvm::options::OPT_O_Group);
   if (oarg != nullptr) {
     StringRef lev(oarg->getValue());
@@ -337,7 +343,7 @@ bool CompileGoImpl::setup(const Action &jobAction)
                                   gollvm::options::OPT_fno_show_column,
                                   true);
 
-  // AutoFDO.
+  // AutoFDO.  这里竟然有 AutoFDO ！！！TODO-ZZ
   opt::Arg *sprofarg =
       args_.getLastArg(gollvm::options::OPT_fprofile_sample_use,
                        gollvm::options::OPT_fno_profile_sample_use,
@@ -363,7 +369,7 @@ bool CompileGoImpl::setup(const Action &jobAction)
     }
   }
 
-  // Capture optimization record.
+  // Capture optimization record. 加日志看看这个优化记录？TODO-ZZ
   opt::Arg *optrecordarg =
       args_.getLastArg(gollvm::options::OPT_fsave_optimization_record,
                        gollvm::options::OPT_fno_save_optimization_record,
@@ -476,7 +482,7 @@ bool CompileGoImpl::setup(const Action &jobAction)
       cpuStr = cpuarg->getValue();
   }
 
-  // Locate correct entry in architectures table for this triple
+  // Locate correct entry in architectures table for this triple 这里似乎非常重要？TODO-ZZ
   const gollvm::arch::CpuAttrs *cpuAttrs = nullptr;
   for (unsigned i = 0; gollvm::arch::triples[i].cpuattrs != nullptr; i += 1) {
     if (!strcmp(triple_.str().c_str(), gollvm::arch::triples[i].triple)) {
@@ -510,7 +516,7 @@ bool CompileGoImpl::setup(const Action &jobAction)
   targetCpuAttr_ = cpuAttrs->cpu;
   targetFeaturesAttr_ = cpuAttrs->attrs;
 
-  // Create target machine
+  // Create target machine 这里似乎非常重要？TODO-ZZ
   Optional<llvm::CodeModel::Model> CM = None;
   target_.reset(
       TheTarget->createTargetMachine(triple_.getTriple(),
@@ -528,6 +534,9 @@ bool CompileGoImpl::setup(const Action &jobAction)
 // setting up the Go frontend via a call to go_create_gogo(). At the
 // end of this routine things should be ready to kick off the front end.
 
+// 这个助手执行设置编译所需的各种初始步骤，包括准备 LLVM 上下文、创建 LLVM 模块、创建桥本身（Llvm_backend 对象）
+// 以及通过调用 go_create_gogo() 设置 Go 前端。在这个例程结束时，应该准备好启动前端。
+
 bool CompileGoImpl::initBridge()
 {
   // Set up the LLVM context
@@ -535,6 +544,7 @@ bool CompileGoImpl::initBridge()
       std::make_unique<BEDiagnosticHandler>(&this->hasError_,
                                             this->remarkCtl_));
 
+  // 加日志看看是否允许 gc ？TODO-ZZ
   llvm::Optional<unsigned> enable_gc =
       driver_.getLastArgAsInteger(gollvm::options::OPT_enable_gc_EQ, 0u);
   enable_gc_ = enable_gc && *enable_gc;
@@ -547,6 +557,7 @@ bool CompileGoImpl::initBridge()
   module_->setTargetTriple(triple_.getTriple());
 
   // Data layout.
+  // 加日志看看？TODO-ZZ
   std::string dlstr = target_->createDataLayout().getStringRepresentation();
   if (enable_gc_)
     dlstr += "-ni:1"; // non-integral pointer in address space 1
@@ -557,7 +568,9 @@ bool CompileGoImpl::initBridge()
     module_->setPIELevel(driver_.getPieLevel());
 
   // Now construct Llvm_backend helper.
+  // 加日志看看？TODO-ZZ
   unsigned addrspace = enable_gc_ ? 1 : 0;
+  // 下面开始设置转换 go ir 到 llvm ir 的结构，非常重要！TODO-ZZ
   bridge_.reset(new Llvm_backend(context_, module_.get(), linemap_.get(), addrspace, triple_, cconv_));
 
   // Honor inline, tracelevel cmd line options
@@ -570,6 +583,7 @@ bool CompileGoImpl::initBridge()
   bridge_->setTargetCpuAttr(targetCpuAttr_);
   bridge_->setTargetFeaturesAttr(targetFeaturesAttr_);
   if (!sampleProfileFile_.empty())
+    // 加日志看看？TODO-ZZ
     bridge_->setEnableAutoFDO();
 
   // -f[no-]omit-frame-pointer
@@ -588,13 +602,15 @@ bool CompileGoImpl::initBridge()
       driver_.reconcileOptionPair(gollvm::options::OPT_fsplit_stack,
                                   gollvm::options::OPT_fno_split_stack,
                                   supportSplitStack);
+  // 加日志看看？TODO-ZZ
   bridge_->setUseSplitStack(useSplitStack);
 
-  // Honor -fdebug-prefix=... option.
+  // Honor -fdebug-prefix=... option. 试试看？TODO-ZZ
   for (const auto &arg : driver_.args().getAllArgValues(gollvm::options::OPT_fdebug_prefix_map_EQ))
     bridge_->addDebugPrefix(llvm::StringRef(arg).split('='));
 
   // GC support.
+  // 加日志看看？TODO-ZZ
   if (enable_gc_) {
     bridge_->setGCStrategy("go");
     linkGoGC();
@@ -603,10 +619,13 @@ bool CompileGoImpl::initBridge()
 
   // Support -fgo-dump-ast
   if (args_.hasArg(gollvm::options::OPT_fgo_dump_ast))
+    // 打印看看，对比 go 官方编译器看看？TODO-ZZ
     go_enable_dump("ast");
 
   // Populate 'args' struct with various bits of information needed by
   // the front end, then pass it to the front end via go_create_gogo().
+
+  // 使用前端所需的各种信息填充 'args' 结构，然后通过 go_create_gogo() 将其传递给前端。
   struct go_create_gogo_args args;
   memset(&args, 0, sizeof(args));
   unsigned bpi = target_->getPointerSize(0) * 8;
@@ -652,15 +671,18 @@ bool CompileGoImpl::initBridge()
       (args.compiling_runtime && args.pkgpath && strcmp(args.pkgpath, "runtime") == 0 ?
        4096 : -1);
   args.linemap = linemap_.get();
+  // 原来是这里将 bridge_ 跟 gofrontend 关联起来的！非常重要！TODO-ZZ
   args.backend = bridge_.get();
   go_create_gogo (&args);
 
   if (args.compiling_runtime)
+    // 这个是啥？加日志看看？TODO-ZZ
     bridge_->setCompilingRuntime();
 
   /* The default precision for floating point numbers.  This is used
      for floating point constants with abstract type.  This may
      eventually be controllable by a command line option.  */
+  /* 浮点数的默认精度。这用于具有抽象类型的浮点常量。这最终可以通过命令行选项来控制。 */
   mpfr_set_default_prec (256);
 
   // Escape analysis
@@ -668,6 +690,7 @@ bool CompileGoImpl::initBridge()
       driver_.reconcileOptionPair(gollvm::options::OPT_fgo_optimize_allocs,
                                   gollvm::options::OPT_fno_go_optimize_allocs,
                                   true);
+  // 对比下这里的逃逸分析与 go 官方编译器里的逃逸分析的效果？TODO-ZZ
   go_enable_optimize("allocs", enableEscapeAnalysis ? 1 : 0);
 
   // Set up the search path to use for locating Go packages.
@@ -777,17 +800,23 @@ void CompileGoImpl::setCConv()
 bool CompileGoImpl::invokeFrontEnd()
 {
   // Collect the input files and kick off the front end
+  // 收集输入文件并启动前端
+
   // Kick off the front end
+  // 启动前端
   unsigned nfiles = inputFileNames_.size();
   std::unique_ptr<const char *> filenames(new const char *[nfiles]);
   const char **fns = filenames.get();
   unsigned idx = 0;
   for (auto &fn : inputFileNames_)
     fns[idx++] = fn.c_str();
+  // 开始解析输入文件源码，非常重要！TODO-ZZ
   go_parse_input_files(fns, nfiles, false, true);
   if (!args_.hasArg(gollvm::options::OPT_nobackend))
     go_write_globals();
   if (args_.hasArg(gollvm::options::OPT_dump_ir))
+    // 下面 dump 出来的已经是 llvm ir 了，在哪里转为 llvm ir 的呢？
+    // 答：应该是在 CompileGoImpl::initBridge() 中调用 go_create_gogo 时将 bridge_ 作为参数传入 gofrontend 并进行关联的！非常重要！TODO-ZZ
     bridge_->dumpModule();
   if (!args_.hasArg(gollvm::options::OPT_noverify) && !go_be_saw_errors())
     bridge_->verifyModule();
@@ -801,6 +830,8 @@ bool CompileGoImpl::invokeFrontEnd()
   // (which would otherwise trigger asserts); in the non-error case it
   // will help to free up bridge-related memory prior to kicking off
   // the pass manager.
+  // 此时删除 bridge_。如果出现错误，这将有助于清理任何无法访问的 LLVM 指令（否则会触发断言）；
+  // 在非错误情况下，这将有助于在启动 pass manager 之前释放与桥相关的内存。
   bridge_.reset(nullptr);
 
   // Early exit at this point if we've seen errors
@@ -882,6 +913,22 @@ void CompileGoImpl::createPasses(legacy::PassManager &MPM,
   pmb.populateModulePassManager(MPM);
 }
 
+// 目前来看，gollvm 目前我面临的最大问题，是下面的 llvm 中的优化细节，以及 go 运行时是如何处理的，
+// 另外，就是对比 go 官方转 ir 的细节跟 gofrontend 转 llvm ir 的比节。
+
+// 一些思考：目前来看，gollvm 是能成功运行，并且常用例子也运行成功，既然官方也说了，没有发布 release 版本是因为还不成熟，
+// 那就去针对 go 特性，去测试 gollvm 跟官方编译器编译对比结果并对比运行时的表现。
+// 深入特性细节、底层实现细节、多动手实践，越深入越了解，越思考，越通透。努力成为专家，专业是一件非常残忍的事情，需要付出极大的努力。
+
+// 一些方法、思路：
+// 1. go 特性入手，观察 gofrontend -> llvm ir，以及最终的编译产物。改官方编译器，自已转 llvm ir。
+// 2. 紧跟 gollvm 官方的讨论、issue。
+// 3. 多动手实践，多思考，多验证，不要想当然，要事实、数据。
+
+// 目标是啥，要做啥，如果 gollvm 哪方面问题很大，去解决它。最终是想充分利用 llvm 的底层优化能力，加速 go 程序到极致的性能，提升服务性能。
+// 所以，直接以最终目标为导向，直接用 gollvm 编译服务代码，看哪里出错，去解决哪里，测量不同代码的性能、去针对性提高。
+// 不要乱尝试，找住某个点深入下去！
+
 bool CompileGoImpl::invokeBackEnd(const Action &jobAction)
 {
   tlii_.reset(new TargetLibraryInfoImpl(triple_));
@@ -902,7 +949,9 @@ bool CompileGoImpl::invokeBackEnd(const Action &jobAction)
 
   // Add statepoint insertion pass to the end of optimization pipeline,
   // right before lowering to machine IR.
+  // 将状态点插入通道添加到优化管道的末尾，就在降低到机器 IR 之前。
   if (enable_gc_) {
+    // go gc 究竟是如何在 llvm 中进行优化并且不影响最终 go 运行时的正常 gc 功能呢？TODO-ZZ
     modulePasses.add(createGoStatepointsLegacyPass());
     modulePasses.add(createRemoveAddrSpacePass(target_->createDataLayout()));
   }
@@ -915,6 +964,9 @@ bool CompileGoImpl::invokeBackEnd(const Action &jobAction)
   // Add passes to emit bitcode or LLVM IR as appropriate. Here we mimic
   // clang behavior, which is to emit bitcode when "-emit-llvm" is specified
   // but an LLVM IR dump of "-S -emit-llvm" is used.
+
+  // 根据需要添加传递以发出位码或 LLVM IR。在这里，我们模仿 clang 行为，
+  // 即在指定“-emit-llvm”但使用“-S -emit-llvm”的 LLVM IR 转储时发出位码。这个是啥？TODO-ZZ
   raw_pwrite_stream *OS = &asmout_->os();
   if (args_.hasArg(gollvm::options::OPT_emit_llvm)) {
     bool bitcode = !args_.hasArg(gollvm::options::OPT_S);
@@ -940,6 +992,10 @@ bool CompileGoImpl::invokeBackEnd(const Action &jobAction)
   // FIXME: the code below is essentially duplicate of
   // LLVMTargetMachine::addPassesToEmitFile (and its callee).
   // TODO: error check.
+
+  // 将 stackmap 机器 IR 通道添加到机器通道的末尾，就在 AsmPrinter 之前。
+  // FIXME：下面的代码本质上是 LLVMTargetMachine::addPassesToEmitFile（及其被调用者）的副本。
+  // TODO：错误检查。
   {
     LLVMTargetMachine *lltm = (LLVMTargetMachine*)(target_.get()); // FIXME: TargetMachine doesn't support llvm::cast?
     TargetPassConfig *passConfig = lltm->createPassConfig(codeGenPasses);
